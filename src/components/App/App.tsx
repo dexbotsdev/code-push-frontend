@@ -8,6 +8,9 @@ import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import "./App.css";
 import { useLocation } from "wouter";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import ErrorCard from "./ErrorCard";
 
 const darkTheme = createTheme({
   typography: {
@@ -82,9 +85,16 @@ const darkTheme = createTheme({
   },
 });
 
+// Define App type for state
+interface AppType {
+  name: string;
+  deployments?: any[];
+}
+
 const App: React.FC = () => {
-  const [apps, setApps] = useState<App[]>([]);
+  const [apps, setApps] = useState<AppType[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
   const [keysModalOpen, setKeysModalOpen] = useState(false);
   const [deploymentKeys, setDeploymentKeys] = useState<
@@ -94,16 +104,19 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
+    setLoadError(null);
     getApps()
       .then((response) => {
         if (response?.apps) {
           setApps(response.apps);
         } else {
-          console.error("No apps found in the response");
+          setLoadError("No apps found in the response");
+          toast.error("No apps found in the response");
         }
       })
       .catch((error) => {
-        console.error("Error fetching apps:", error);
+        setLoadError(error?.message || "Apps can't be loaded");
+        toast.error(error?.message || "Apps can't be loaded");
       })
       .finally(() => {
         setLoading(false);
@@ -136,6 +149,65 @@ const App: React.FC = () => {
 
   if (loading) {
     return <div className="loading">Loading...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Box
+          sx={{
+            display: "flex",
+            minHeight: "100vh",
+            minWidth: "910px",
+            overflowX: "auto",
+            backgroundColor: "#1e1e2f",
+          }}
+        >
+          <Box
+            sx={{
+              width: "250px",
+              backgroundColor: "#2c2c3e",
+              color: "white",
+              padding: "20px",
+              flexShrink: 0,
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <Typography
+                sx={{
+                  fontWeight: "bold",
+                  color: "white",
+                  fontSize: "18px",
+                }}
+              >
+                CodePush Deployments
+              </Typography>
+            </Box>
+          </Box>
+          <Box
+            sx={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              backgroundColor: "#1e1e2f",
+              mt: 6, // margin top
+            }}
+          >
+            <ErrorCard title="Error Loading Apps" message={loadError} />
+          </Box>
+        </Box>
+        <ToastContainer position="top-right" autoClose={3000} />
+      </ThemeProvider>
+    );
   }
 
   const SidebarContent = (
@@ -203,6 +275,7 @@ const App: React.FC = () => {
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
+      <ToastContainer position="top-right" autoClose={3000} />
       <Router>
         <Box
           sx={{

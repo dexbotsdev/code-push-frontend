@@ -13,8 +13,20 @@ axios.interceptors.request.use((requestConfig) => {
 });
 
 export const getApps = async () => {
-  const response = await axios.get("/apps");
-  return response.data;
+  try {
+    const response = await axios.get("/apps");
+    return response.data;
+  } catch (error: any) {
+    if (error.response && error.response.status === 401) {
+      // If the response is plain text, not JSON
+      const message =
+        typeof error.response.data === "string"
+          ? error.response.data
+          : error.response.data?.message || "Unauthorized";
+      throw new Error(message);
+    }
+    throw error;
+  }
 };
 
 export const getDeploymentHistory = async (
@@ -103,3 +115,9 @@ export const getDeploymentMetrics = async (
   );
   return response.data;
 };
+
+declare global {
+  interface Window {
+    SERVER_CONF: any;
+  }
+}

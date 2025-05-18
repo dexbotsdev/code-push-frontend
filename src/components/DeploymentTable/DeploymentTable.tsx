@@ -33,7 +33,7 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
   const [deploymentHistories, setDeploymentHistories] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [openModal, setOpenModal] = useState(false);
-  const [selectedDeployment, setSelectedDeployment] = useState(null);
+  const [selectedDeployment, setSelectedDeployment] = useState<any>(null);
   const [sortOption, setSortOption] = useState<string>("uploadTime"); // Default sorting by date
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc"); // Default to descending
   const [keysModalOpen, setKeysModalOpen] = useState(false);
@@ -43,7 +43,17 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
   const [keysLoading, setKeysLoading] = useState(false);
   const [deploymentMetrics, setDeploymentMetrics] = useState<any | null>(null);
 
-  const handleOpenModal = (deployment) => {
+  // Clear state when switching deployments/apps
+  useEffect(() => {
+    setDeploymentHistories([]);
+    setSelectedDeployment(null);
+    setOpenModal(false);
+    setSortOption("uploadTime");
+    setSortDirection("desc");
+    setDeploymentMetrics(null);
+  }, [app, keyName]);
+
+  const handleOpenModal = (deployment: any) => {
     setSelectedDeployment(deployment);
     setOpenModal(true);
   };
@@ -79,7 +89,8 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
         // Aggregate only the active installs across all versions
         const aggregatedMetrics = Object.entries(metrics?.metrics || {}).reduce(
           (acc, [_, value]) => {
-            acc.active += value?.active > 0 ? value?.active : 0 || 0; // Sum only the active installs
+            const v = value as { active?: number };
+            acc.active += v?.active && v.active > 0 ? v.active : 0;
             return acc;
           },
           { active: 0 }
@@ -152,7 +163,7 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
       callbackSuccess && callbackSuccess();
     } catch (error) {
       console.error("Error during rollback:", error);
-      callbackFail && callbackFail(error);
+      callbackFail && callbackFail();
     }
   };
 
@@ -186,12 +197,12 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
     >
       <Tabs
         value={activeTab}
-        onChange={(event, newValue) => setActiveTab(newValue)}
+        onChange={(_event, newValue) => setActiveTab(newValue)}
         textColor="secondary"
         indicatorColor="secondary"
         style={{ marginBottom: "20px" }}
       >
-        {app.deployments?.map((deployment, index) => (
+        {app.deployments?.map((deployment: any, index: number) => (
           <Tab
             key={`${deployment?.otherDetails?.deploymentName}-${index}`}
             label={deployment || `Deployment ${index + 1}`}

@@ -42,7 +42,17 @@ This frontend is **not protected** by default. It should be deployed behind an S
    yarn install
    ```
 
-3. Start the development server:
+3. Start the development server (hot reload):
+
+   ```bash
+   yarn dev
+   # or
+   npm run dev
+   ```
+
+   The app will be available at `http://localhost:3002` by default.
+
+4. Alternatively, you can start the app in standard mode:
 
    ```bash
    npm start
@@ -50,7 +60,7 @@ This frontend is **not protected** by default. It should be deployed behind an S
    yarn start
    ```
 
-4. Open your browser and navigate to `http://localhost:3002`.
+5. Open your browser and navigate to `http://localhost:3002`.
 
 ## Generating a Token
 
@@ -87,7 +97,9 @@ To customize the application, you can use a `config.js` file, environment variab
    APP_TOKEN=your_token_here BACKEND_URL=https://api.mycodepush.com yarn start
    ```
 
-3. Restart the application for changes to take effect.
+3. You can also create a `config.js` file in the project root to provide configuration. See `config.example.js` for the structure and supported fields.
+
+4. Restart the application for changes to take effect.
 
 ### Fields
 

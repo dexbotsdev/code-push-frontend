@@ -26,16 +26,14 @@ if [[ -f .env ]]; then
       [[ -z $value ]] && value=${varvalue}
 
       # Append configuration property to JS file if varname and value are not empty
-      if [[ -n "$value" ]]; then
-        echo "  \"$varname\": \"$value\"," >> ./config.js
-      fi
+      echo "  \"$varname\": \"$value\"," >> ./config.js
     fi
   done < .env
 else
   # If .env does not exist, read from config.example.js
   if [[ -f config.example.js ]]; then
     # Extract keys from config.example.js using grep and sed
-    keys=$(awk -F: '/^[[:space:]]*["'"'"']?[A-Za-z_][A-Za-z0-9_]*["'"'"']?[[:space:]]*:/{gsub(/["'"'"']/, "", $1); print $1}' config.example.js)
+    keys=$(awk -F: '/^[[:space:]]*["'"'"']?[A-Za-z_$][A-Za-z0-9_$]*["'"'"']?[[:space:]]*:/{gsub(/["'"'"']/, "", $1); print $1}' config.example.js)
     if [[ -n "$keys" ]]; then
       for varname in $keys; do
         if [[ -n "$varname" ]]; then

@@ -11,6 +11,7 @@ import { useLocation } from "wouter";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import ErrorCard from "./ErrorCard";
+import LoadingCard from "./LoadingCard";
 
 const darkTheme = createTheme({
   typography: {
@@ -148,7 +149,61 @@ const App: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return (
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <Box
+          sx={{
+            display: "flex",
+            minHeight: "100vh",
+            minWidth: "910px",
+            overflowX: "auto",
+            backgroundColor: "#1e1e2f",
+          }}
+        >
+          <Box
+            sx={{
+              width: "250px",
+              backgroundColor: "#2c2c3e",
+              color: "white",
+              padding: "20px",
+              flexShrink: 0,
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <Typography
+                sx={{
+                  fontWeight: "bold",
+                  color: "white",
+                  fontSize: "18px",
+                }}
+              >
+                CodePush Deployments
+              </Typography>
+            </Box>
+          </Box>
+          <Box
+            sx={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              backgroundColor: "#1e1e2f",
+              mt: 6,
+            }}
+          >
+            <LoadingCard />
+          </Box>
+        </Box>
+      </ThemeProvider>
+    );
   }
 
   if (loadError) {

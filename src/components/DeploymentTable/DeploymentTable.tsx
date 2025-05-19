@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import Tabs from "@mui/material/Tabs";
@@ -19,16 +19,19 @@ import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import Chip from "@mui/material/Chip";
 import DeploymentKeysModal from "../DeploymentKeysModal/DeploymentKeysModal";
 import { getDeploymentKeys } from "../../api/api";
-import Metrics from "../Metrics/Metrics";
-import PieChartComponent from "../Metrics/PieChartComponent"; // Import the PieChartComponent
-import RolloutChartComponent from "../Metrics/RolloutChartComponent"; // Import the RolloutChartComponent
+import DashboardAnalytics from "./DashboardAnalytics";
 
 interface DeploymentTableProps {
   app: any;
   keyName: string;
+  appLoading: boolean;
 }
 
-const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
+const DeploymentTable: React.FC<DeploymentTableProps> = ({
+  app,
+  keyName,
+  appLoading,
+}) => {
   const [activeTab, setActiveTab] = useState<number>(0);
   const [deploymentHistories, setDeploymentHistories] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -42,6 +45,7 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
   >(null);
   const [keysLoading, setKeysLoading] = useState(false);
   const [deploymentMetrics, setDeploymentMetrics] = useState<any | null>(null);
+  const requestIdRef = useRef(0);
 
   // Clear state when switching deployments/apps
   useEffect(() => {
@@ -65,22 +69,32 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
 
   const fetchDeploymentHistory = async () => {
     setLoading(true);
+    const currentRequestId = ++requestIdRef.current;
     try {
       const currentDeployment = app.deployments[activeTab];
       if (currentDeployment) {
         const history = await getDeploymentHistory(app.name, currentDeployment);
-        setDeploymentHistories(history);
+        if (requestIdRef.current === currentRequestId) {
+          setDeploymentHistories(history);
+        }
       } else {
-        setDeploymentHistories([]);
+        if (requestIdRef.current === currentRequestId) {
+          setDeploymentHistories([]);
+        }
       }
     } catch (error) {
-      console.error("Error fetching deployment history", error);
+      if (requestIdRef.current === currentRequestId) {
+        console.error("Error fetching deployment history", error);
+      }
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === currentRequestId) {
+        setLoading(false);
+      }
     }
   };
 
   const fetchDeploymentMetrics = async () => {
+    const currentRequestId = requestIdRef.current;
     try {
       const currentDeployment = app.deployments[activeTab];
       if (currentDeployment) {
@@ -96,21 +110,28 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
           { active: 0 }
         );
 
-        setDeploymentMetrics({
-          aggregated: aggregatedMetrics,
-          versions: metrics?.metrics || null,
-        });
+        if (requestIdRef.current === currentRequestId) {
+          setDeploymentMetrics({
+            aggregated: aggregatedMetrics,
+            versions: metrics?.metrics || null,
+          });
+        }
       } else {
-        setDeploymentMetrics(null);
+        if (requestIdRef.current === currentRequestId) {
+          setDeploymentMetrics(null);
+        }
       }
     } catch (error) {
-      console.error("Error fetching deployment metrics", error);
+      if (requestIdRef.current === currentRequestId) {
+        console.error("Error fetching deployment metrics", error);
+      }
     }
   };
 
   useEffect(() => {
     fetchDeploymentHistory();
     fetchDeploymentMetrics();
+    // No cleanup needed, just rely on requestIdRef
   }, [app, activeTab]);
 
   const handleSort = (field: string) => {
@@ -185,6 +206,32 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
     setDeploymentKeys(null);
   };
 
+  // Dashboard for the last deployment (last in the list)
+  const lastDeployment = deploymentHistories[deploymentHistories.length - 1];
+  const lastMetrics =
+    lastDeployment && deploymentMetrics?.versions?.[lastDeployment.label];
+
+  const dashboardData = [
+    {
+      name: "Active",
+      value: lastMetrics?.active || 0,
+    },
+    {
+      name: "Downloaded",
+      value: lastMetrics?.downloaded || 0,
+    },
+    {
+      name: "Failed",
+      value: lastMetrics?.failed || 0,
+    },
+    {
+      name: "Installed",
+      value: lastMetrics?.installed || 0,
+    },
+  ];
+
+  if (appLoading) return null;
+
   return (
     <div
       key={keyName}
@@ -224,191 +271,77 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
         </Box>
       </Tabs>
 
-      {loading ? (
+      {/* Dashboard Section for Latest Deployment (smaller, muted, split into cards) */}
+      <DashboardAnalytics
+        latestDeployment={
+          lastDeployment
+            ? {
+                ...lastDeployment,
+                onEdit: () =>
+                  handleOpenModal({
+                    appName: app.name,
+                    deploymentName: app.deployments[activeTab],
+                    row: lastDeployment,
+                  }),
+              }
+            : null
+        }
+        dashboardData={dashboardData}
+        loading={(!appLoading && loading) || !deploymentMetrics}
+        appLoading={appLoading}
+      />
+
+      {loading && !appLoading ? (
         <div style={{ textAlign: "center", padding: "20px" }}>
           <CircularProgress color="secondary" />
         </div>
-      ) : deploymentHistories.length === 0 ? (
-        <Typography
-          variant="h6"
-          style={{
-            color: "white",
-            textAlign: "center",
-            marginTop: "20px",
-          }}
-        >
-          No deployments
-        </Typography>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <Box
+      ) : !loading && !appLoading ? (
+        deploymentHistories.length === 0 ? (
+          <Typography
+            variant="h6"
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "10px 15px",
-              backgroundColor: "#2c2c3e",
-              borderRadius: "8px",
-              marginBottom: "10px",
-              color: "white", // Changed text color to white
-              fontWeight: "bold",
+              color: "white",
+              textAlign: "center",
+              marginTop: "20px",
             }}
+          >
+            No deployments
+          </Typography>
+        ) : (
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
           >
             <Box
               style={{
-                flex: 2,
-                minWidth: "100px",
-                cursor: "pointer",
                 display: "flex",
-                alignItems: "center",
-                gap: "5px",
-              }}
-              onClick={() => handleSort("label")}
-            >
-              Label
-              {sortOption === "label" &&
-                (sortDirection === "asc" ? (
-                  <ArrowDropUpIcon />
-                ) : (
-                  <ArrowDropDownIcon />
-                ))}
-            </Box>
-            <Box
-              style={{
-                display: "flex",
-                flex: 1,
                 justifyContent: "space-between",
                 alignItems: "center",
-                placeContent: "center",
+                padding: "10px 15px",
+                borderRadius: "10px 10px 0 0",
+                fontWeight: "bold",
+                letterSpacing: 1,
+                fontSize: "1.08rem",
+                zIndex: 1,
               }}
             >
               <Box
                 style={{
-                  flex: 1,
-                  textAlign: "center",
+                  flex: 2,
                   minWidth: "100px",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: "5px",
-                  placeContent: "center",
                 }}
-                onClick={() => handleSort("isMandatory")}
+                onClick={() => handleSort("label")}
               >
-                Mandatory
-                {sortOption === "isMandatory" &&
+                Label
+                {sortOption === "label" &&
                   (sortDirection === "asc" ? (
                     <ArrowDropUpIcon />
                   ) : (
                     <ArrowDropDownIcon />
                   ))}
-              </Box>
-              <Box
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  minWidth: "100px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  placeContent: "center",
-                }}
-                onClick={() => handleSort("isDisabled")}
-              >
-                Status
-                {sortOption === "isDisabled" &&
-                  (sortDirection === "asc" ? (
-                    <ArrowDropUpIcon />
-                  ) : (
-                    <ArrowDropDownIcon /> // Corrected closing parentheses
-                  ))}
-              </Box>
-              <Box
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  minWidth: "100px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  placeContent: "center",
-                }}
-                onClick={() => handleSort("rollout")}
-              >
-                Rollout
-                {sortOption === "rollout" &&
-                  (sortDirection === "asc" ? (
-                    <ArrowDropUpIcon />
-                  ) : (
-                    <ArrowDropDownIcon />
-                  ))}
-              </Box>
-              <Box
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  minWidth: "100px",
-                  placeContent: "center",
-                }}
-              >
-                Active Installs
-              </Box>
-              <Box
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  minWidth: "100px",
-                  placeContent: "center",
-                }}
-              >
-                Actions
-              </Box>
-            </Box>
-          </Box>
-          {sortedHistories.map((row, idx) => (
-            <Box
-              key={`${row.packageHash || idx}-${row.label}`} // Ensure unique keys
-              style={{
-                backgroundColor: "#2c2c3e",
-                borderRadius: "8px",
-                padding: "15px",
-                boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)",
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "20px",
-              }}
-            >
-              <Box style={{ flex: 2, minWidth: "100px" }}>
-                <Typography
-                  variant="subtitle1"
-                  style={{ color: "#b39ddb", fontWeight: "bold" }}
-                >
-                  {row.label}
-                </Typography>
-                <Typography variant="body2" style={{ color: "white" }}>
-                  <strong>Date:</strong>{" "}
-                  {new Date(row.uploadTime).toLocaleString()}
-                </Typography>
-                {row.appVersion && (
-                  <Typography variant="body2" style={{ color: "white" }}>
-                    <strong>Version:</strong> {row.appVersion}
-                  </Typography>
-                )}
-                {row.description && (
-                  <Typography variant="body2" style={{ color: "white" }}>
-                    <strong>Description:</strong> {row.description}
-                  </Typography>
-                )}
-                {deploymentMetrics?.versions?.[row.label] && (
-                  <Metrics
-                    metrics={deploymentMetrics.versions[row.label]}
-                    aggregatedMetrics={deploymentMetrics.aggregated} // Pass aggregated metrics
-                  />
-                )}
               </Box>
               <Box
                 style={{
@@ -416,6 +349,7 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
                   flex: 1,
                   justifyContent: "space-between",
                   alignItems: "center",
+                  placeContent: "center",
                 }}
               >
                 <Box
@@ -423,83 +357,229 @@ const DeploymentTable: React.FC<DeploymentTableProps> = ({ app, keyName }) => {
                     flex: 1,
                     textAlign: "center",
                     minWidth: "100px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    placeContent: "center",
                   }}
+                  onClick={() => handleSort("isMandatory")}
                 >
-                  {row.isMandatory ? (
-                    <CheckCircleIcon style={{ color: "#7c4dff" }} /> // Bright purple for mandatory
-                  ) : (
-                    <CancelIcon style={{ color: "rgba(124, 77, 255, 0.5)" }} /> // Dimmed purple for not mandatory
-                  )}
+                  Mandatory
+                  {sortOption === "isMandatory" &&
+                    (sortDirection === "asc" ? (
+                      <ArrowDropUpIcon />
+                    ) : (
+                      <ArrowDropDownIcon />
+                    ))}
                 </Box>
                 <Box
                   style={{
                     flex: 1,
                     textAlign: "center",
                     minWidth: "100px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    placeContent: "center",
                   }}
+                  onClick={() => handleSort("isDisabled")}
                 >
-                  {getStatusLabel(row.isDisabled)}
+                  Status
+                  {sortOption === "isDisabled" &&
+                    (sortDirection === "asc" ? (
+                      <ArrowDropUpIcon />
+                    ) : (
+                      <ArrowDropDownIcon /> // Corrected closing parentheses
+                    ))}
                 </Box>
                 <Box
                   style={{
                     flex: 1,
                     textAlign: "center",
                     minWidth: "100px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    placeContent: "center",
                   }}
+                  onClick={() => handleSort("rollout")}
                 >
-                  {row.rollout ? (
-                    <RolloutChartComponent rollout={row.rollout} />
-                  ) : (
-                    "N/A"
-                  )}
+                  Rollout
+                  {sortOption === "rollout" &&
+                    (sortDirection === "asc" ? (
+                      <ArrowDropUpIcon />
+                    ) : (
+                      <ArrowDropDownIcon />
+                    ))}
                 </Box>
                 <Box
                   style={{
                     flex: 1,
                     textAlign: "center",
                     minWidth: "100px",
+                    placeContent: "center",
                   }}
                 >
-                  {deploymentMetrics?.versions?.[row.label] && (
-                    <PieChartComponent
-                      active={
-                        deploymentMetrics.versions[row.label]?.active || 0
-                      }
-                      total={deploymentMetrics.aggregated?.active || 0}
-                    />
-                  )}
+                  Installs
                 </Box>
                 <Box
                   style={{
                     flex: 1,
                     textAlign: "center",
                     minWidth: "100px",
+                    placeContent: "center",
                   }}
                 >
-                  <Button
-                    variant="contained"
-                    style={{
-                      backgroundColor: "#7c4dff",
-                      color: "white",
-                    }}
-                    size="small"
-                    startIcon={<EditIcon />}
-                    onClick={() =>
-                      handleOpenModal({
-                        appName: app.name,
-                        deploymentName: app.deployments[activeTab],
-                        row,
-                      })
-                    }
-                  >
-                    Edit
-                  </Button>
+                  Actions
                 </Box>
               </Box>
             </Box>
-          ))}
-        </div>
-      )}
+            {sortedHistories.map((row, idx) => (
+              <Box
+                key={`${row.packageHash || idx}-${row.label}`} // Ensure unique keys
+                style={{
+                  backgroundColor: "#2c2c3e",
+                  borderRadius: "8px",
+                  padding: "15px",
+                  boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)",
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "20px",
+                }}
+              >
+                <Box style={{ flex: 2, minWidth: "100px" }}>
+                  <Typography
+                    variant="subtitle1"
+                    style={{ color: "#b39ddb", fontWeight: "bold" }}
+                  >
+                    {row.label}
+                  </Typography>
+                  <Typography variant="body2" style={{ color: "white" }}>
+                    <strong>Date:</strong>{" "}
+                    {new Date(row.uploadTime).toLocaleString()}
+                  </Typography>
+                  {row.appVersion && (
+                    <Typography variant="body2" style={{ color: "white" }}>
+                      <strong>Version:</strong> {row.appVersion}
+                    </Typography>
+                  )}
+                  {row.description && (
+                    <Typography variant="body2" style={{ color: "white" }}>
+                      <strong>Description:</strong> {row.description}
+                    </Typography>
+                  )}
+                  {/* Removed Metrics, PieChartComponent, and RolloutChartComponent from table rows */}
+                </Box>
+                <Box
+                  style={{
+                    display: "flex",
+                    flex: 1,
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Box
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      minWidth: "100px",
+                    }}
+                  >
+                    {row.isMandatory ? (
+                      <CheckCircleIcon style={{ color: "#7c4dff" }} />
+                    ) : (
+                      <CancelIcon
+                        style={{ color: "rgba(124, 77, 255, 0.5)" }}
+                      />
+                    )}
+                  </Box>
+                  <Box
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      minWidth: "100px",
+                    }}
+                  >
+                    {getStatusLabel(row.isDisabled)}
+                  </Box>
+                  <Box
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      minWidth: "100px",
+                    }}
+                  >
+                    {/* Rollout value only */}
+                    {typeof row.rollout === "number"
+                      ? `${row.rollout}%`
+                      : "N/A"}
+                  </Box>
+                  <Box
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      minWidth: "100px",
+                    }}
+                  >
+                    {/* Installs: active/total */}
+                    {(() => {
+                      const active =
+                        deploymentMetrics?.versions?.[row.label]?.active;
+                      const total =
+                        deploymentMetrics?.versions?.[row.label]?.installed;
+                      if (
+                        typeof active === "number" &&
+                        typeof total === "number" &&
+                        total > 0
+                      ) {
+                        const percent = ((active / total) * 100).toFixed(1);
+                        return `${active}/${total} (${percent}%)`;
+                      } else if (typeof active === "number") {
+                        return `${active}`;
+                      } else if (typeof total === "number") {
+                        return `0/${total} (0%)`;
+                      } else {
+                        return "N/A";
+                      }
+                    })()}
+                  </Box>
+                  <Box
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      minWidth: "100px",
+                    }}
+                  >
+                    <Button
+                      variant="contained"
+                      style={{
+                        backgroundColor: "#7c4dff",
+                        color: "white",
+                      }}
+                      size="small"
+                      startIcon={<EditIcon />}
+                      onClick={() =>
+                        handleOpenModal({
+                          appName: app.name,
+                          deploymentName: app.deployments[activeTab],
+                          row,
+                        })
+                      }
+                    >
+                      Edit
+                    </Button>
+                  </Box>
+                </Box>
+              </Box>
+            ))}
+          </div>
+        )
+      ) : null}
 
       <EditDeployment
         open={openModal}

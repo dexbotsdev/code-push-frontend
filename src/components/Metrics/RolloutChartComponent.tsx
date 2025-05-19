@@ -1,14 +1,16 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { PieChart, Pie, Cell } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 interface RolloutChartComponentProps {
   rollout: number;
+  size?: number;
 }
 
 const RolloutChartComponent: React.FC<RolloutChartComponentProps> = ({
   rollout,
+  size = 40,
 }) => {
   const data = [
     { name: "Rolled Out", value: rollout },
@@ -22,8 +24,10 @@ const RolloutChartComponent: React.FC<RolloutChartComponentProps> = ({
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        width: "40px",
-        height: "40px",
+        width: "100%",
+        height: `${size + 20}px`,
+        minHeight: `${size}px`,
+        maxHeight: `${size + 20}px`,
         margin: "auto",
         position: "relative",
       }}
@@ -36,8 +40,30 @@ const RolloutChartComponent: React.FC<RolloutChartComponentProps> = ({
           No data
         </Typography>
       ) : (
-        <>
-          <PieChart width={60} height={60}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <defs>
+              <linearGradient
+                id="rolloutPieGradient"
+                x1="0"
+                y1="0"
+                x2="1"
+                y2="1"
+              >
+                <stop offset="0%" stopColor="#4fc3f7" stopOpacity={0.95} />
+                <stop offset="100%" stopColor="#01579b" stopOpacity={0.8} />
+              </linearGradient>
+              <linearGradient
+                id="rolloutPieInactiveGradient"
+                x1="0"
+                y1="0"
+                x2="1"
+                y2="1"
+              >
+                <stop offset="0%" stopColor="#23233a" stopOpacity={0.7} />
+                <stop offset="100%" stopColor="#23233a" stopOpacity={0.4} />
+              </linearGradient>
+            </defs>
             <Pie
               data={data}
               dataKey="value"
@@ -46,33 +72,43 @@ const RolloutChartComponent: React.FC<RolloutChartComponentProps> = ({
               cy="50%"
               startAngle={90}
               endAngle={450}
-              innerRadius={25}
-              outerRadius={30}
+              innerRadius="60%"
+              outerRadius="80%"
               paddingAngle={5}
+              isAnimationActive={false}
             >
-              {data.map((entry, index) => (
+              {data.map((_, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill={COLORS[index % COLORS.length]}
+                  fill={
+                    index === 0
+                      ? "url(#rolloutPieGradient)"
+                      : "url(#rolloutPieInactiveGradient)"
+                  }
                   stroke="none"
                 />
               ))}
             </Pie>
           </PieChart>
-          <Typography
-            variant="caption"
-            sx={{
-              position: "absolute",
-              color: "white",
-              fontWeight: "bold",
-              textAlign: "center",
-              fontSize: "10px",
-            }}
-          >
-            {rollout}%
-          </Typography>
-        </>
+        </ResponsiveContainer>
       )}
+      <Typography
+        variant="caption"
+        sx={{
+          position: "absolute",
+          color: "white",
+          fontWeight: "bold",
+          textAlign: "center",
+          fontSize: "12px",
+          left: 0,
+          right: 0,
+          top: "50%",
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+        }}
+      >
+        {rollout}%
+      </Typography>
     </Box>
   );
 };
